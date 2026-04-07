@@ -523,10 +523,6 @@ body::before {
 
     <div class="login-card">
       <div class="field">
-        <label>Host</label>
-        <input type="text" id="inputHost" placeholder="xxxx.s1.eu.hivemq.cloud" autocomplete="off" autocapitalize="off" spellcheck="false">
-      </div>
-      <div class="field">
         <label>Gebruikersnaam</label>
         <input type="text" id="inputUser" placeholder="gebruikersnaam" autocomplete="username" autocapitalize="off" spellcheck="false">
       </div>
@@ -665,6 +661,7 @@ const PORT         = 8884;
 const TOPIC_CMD    = 'deur/command';
 const TOPIC_STATUS = 'deur/status';
 const STORAGE_KEY  = 'deurapp_creds';
+const HIVEMQ_HOST  = 'b50882be934647908aa15c55b814bd3b.s1.eu.hivemq.cloud';
 
 let client;
 let connected = false;
@@ -680,9 +677,9 @@ function toggleRemember() {
 }
 
 // ── Persist credentials ───────────────────
-function saveCredentials(host, user, pass) {
+function saveCredentials(user, pass) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ host, user, pass }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, pass }));
   } catch(e) {}
 }
 
@@ -710,20 +707,18 @@ function hideLoginError() {
 
 function doLogin() {
   hideLoginError();
-  const host = document.getElementById('inputHost').value.trim();
   const user = document.getElementById('inputUser').value.trim();
   const pass = document.getElementById('inputPass').value;
 
-  if (!host) { showLoginError('Vul een host in.'); return; }
   if (!user) { showLoginError('Vul een gebruikersnaam in.'); return; }
   if (!pass) { showLoginError('Vul een wachtwoord in.'); return; }
 
   document.getElementById('loginBtn').disabled = true;
   document.getElementById('loginBtn').textContent = 'Verbinden...';
 
-  connectMQTT(host, user, pass, () => {
+  connectMQTT(HIVEMQ_HOST, user, pass, () => {
     // Success
-    if (rememberMe) saveCredentials(host, user, pass);
+    if (rememberMe) saveCredentials(user, pass);
     showApp();
   }, (err) => {
     // Failure
@@ -878,7 +873,6 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
   const saved = loadCredentials();
   if (saved) {
     // Pre-fill and auto-connect
-    document.getElementById('inputHost').value = saved.host;
     document.getElementById('inputUser').value = saved.user;
     document.getElementById('inputPass').value = saved.pass;
     rememberMe = true;
