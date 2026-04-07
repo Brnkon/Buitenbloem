@@ -282,6 +282,24 @@ body::before {
 
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+.connect-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted2);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+
+.connect-btn:hover { border-color: rgba(59,130,246,0.3); color: var(--blue); }
+.connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Cards ── */
 .card {
   background: var(--card);
@@ -556,8 +574,9 @@ body::before {
       <div class="header-right">
         <div class="conn-badge" id="connBadge">
           <div class="conn-dot"></div>
-          <span id="connLabel">Verbinden</span>
+          <span id="connLabel">Niet verbonden</span>
         </div>
+        <button class="connect-btn" id="connectBtn" onclick="requestStatus()" title="Status opvragen">🔄</button>
         <button class="logout-btn" onclick="doLogout()">↩ Uitloggen</button>
       </div>
     </div>
@@ -636,7 +655,7 @@ body::before {
       <div class="auto-header">
         <div class="card-title" style="margin:0">Automatisch</div>
         <div class="toggle-wrap">
-          <button class="toggle" id="autoToggle" onclick="toggleAuto()"></button>
+          <button class="toggle" id="autoToggle" onclick="toggleAuto()" disabled></button>
           <span class="toggle-label" id="autoLabel">Uit</span>
         </div>
       </div>
@@ -644,14 +663,14 @@ body::before {
       <div class="temp-setter">
         <div class="lbl">Kier boven deze temperatuur</div>
         <div class="temp-controls">
-          <button class="temp-btn" onclick="adjustTemp(-0.5)">−</button>
+          <button class="temp-btn" onclick="adjustTemp(-0.5)" disabled>−</button>
           <div class="temp-display" id="setTempDisplay">22.0°</div>
-          <button class="temp-btn" onclick="adjustTemp(0.5)">+</button>
+          <button class="temp-btn" onclick="adjustTemp(0.5)" disabled>+</button>
         </div>
       </div>
     </div>
 
-    <div class="log" id="log">Verbinding opzetten...</div>
+    <div class="log" id="log">Klik op 🔄 om status op te vragen...</div>
 
   </div><!-- /appScreen -->
 </div><!-- /page -->
@@ -664,7 +683,7 @@ const STORAGE_KEY  = 'deurapp_creds';
 const HIVEMQ_HOST  = 'b50882be934647908aa15c55b814bd3b.s1.eu.hivemq.cloud';
 
 let client;
-let connected = false;
+let espConnected = false;
 let autoOn    = false;
 let setTemp   = 22.0;
 let rememberMe = false;
@@ -731,7 +750,7 @@ function doLogin() {
 function doLogout() {
   if (client) { try { client.end(true); } catch(e) {} }
   clearCredentials();
-  connected = false;
+  espConnected = false;
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginBtn').disabled = false;
@@ -743,6 +762,7 @@ function doLogout() {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
+  setLog('Klik op 🔄 om status op te vragen...', '');
 }
 
 // ── UI helpers ────────────────────────────
@@ -760,6 +780,8 @@ function setLog(msg, cls='') {
 
 function setBtns(enabled) {
   document.querySelectorAll('.btn').forEach(b => b.disabled = !enabled);
+  document.getElementById('autoToggle').disabled = !enabled;
+  document.querySelectorAll('.temp-btn').forEach(b => b.disabled = !enabled);
 }
 
 function updateDoorLabel(elId, val) {
@@ -771,9 +793,15 @@ function updateDoorLabel(elId, val) {
 
 // ── Commands ──────────────────────────────
 function send(cmd) {
-  if (!connected) return;
+  if (!espConnected) return;
   client.publish(TOPIC_CMD, cmd, { qos: 1 });
   setLog('Verzonden: ' + cmd, 'ok');
+}
+
+function requestStatus() {
+  if (!client) return;
+  client.publish(TOPIC_CMD, 'status:request', { qos: 1 });
+  setLog('Status opgevraagd...', 'warn');
 }
 
 function toggleAuto() {
@@ -805,14 +833,12 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
   client.on('connect', () => {
     if (resolved) return;
     resolved = true;
-    connected = true;
 
     // Now enable auto-reconnect
     client.options.reconnectPeriod = 3000;
 
-    setConn('connected', 'Verbonden');
-    setLog('Verbonden ✓', 'ok');
-    setBtns(true);
+    setConn('', 'Broker verbonden');
+    setLog('Broker verbonden. Klik op 🔄 om ESP status op te vragen...', '');
     client.subscribe(TOPIC_STATUS);
     onSuccess();
   });
@@ -826,13 +852,18 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
     setLog('Fout: ' + e.message, 'err');
     setConn('error','Fout');
     setBtns(false);
-    connected = false;
+    espConnected = false;
   });
 
   client.on('message', (topic, payload) => {
     if (topic !== TOPIC_STATUS) return;
     try {
       const d = JSON.parse(payload.toString());
+      
+      espConnected = true;
+      setConn('connected', 'ESP verbonden');
+      setBtns(true);
+      
       if (d.temp !== undefined) {
         document.getElementById('tempVal').textContent = d.temp.toFixed(1) + '°';
       }
@@ -847,24 +878,22 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
         setTemp = d.setTemp;
         document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
       }
-      setLog('Update ontvangen ' + new Date().toLocaleTimeString('nl-NL'), '');
+      setLog('Status ontvangen ' + new Date().toLocaleTimeString('nl-NL'), 'ok');
     } catch(e) {
       setLog('Parse fout: ' + e.message, 'err');
     }
   });
 
   client.on('reconnect', () => {
-    setLog('Herverbinden...','warn');
+    setLog('Herverbinden met broker...','warn');
     setConn('','Herverbinden');
-    setBtns(false);
-    connected = false;
   });
 
   client.on('offline', () => {
     setLog('Offline','err');
     setConn('error','Offline');
     setBtns(false);
-    connected = false;
+    espConnected = false;
   });
 }
 
