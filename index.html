@@ -874,46 +874,59 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
     espConnected = false;
   });
 
-  client.on('message', (topic, payload) => {
-    if (topic !== TOPIC_STATUS) return;
-    try {
-      const d = JSON.parse(payload.toString());
-      
-      espConnected = true;
-      setConn('connected', 'ESP verbonden');
-      setBtns(true);
-      
-      if (d.temp !== undefined) {
-        document.getElementById('tempVal').textContent = d.temp.toFixed(1) + '°';
-      }
-      if (d.humidity !== undefined) {
-        document.getElementById('humidityVal').textContent = d.humidity.toFixed(1) + '%';
-      }
-      if (d.left)  updateDoorLabel('leftVal',  d.left);
-      if (d.right) updateDoorLabel('rightVal', d.right);
-      if (d.auto !== undefined && d.auto !== autoOn) {
-        autoOn = d.auto;
-        document.getElementById('autoToggle').className = 'toggle' + (autoOn ? ' on' : '');
-        document.getElementById('autoLabel').textContent = autoOn ? 'Aan' : 'Uit';
-        setBtns(espConnected);
-      }
-      if (d.setTemp !== undefined) {
-        setTemp = d.setTemp;
-        document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
-      }
-      
-      // Error handling
-      if (d.error) {
-        setError('⚠ ' + d.error);
-        setLog(d.error, 'warn');
-      } else {
-        setError('');
-        setLog('Status ontvangen ' + new Date().toLocaleTimeString('nl-NL'), 'ok');
-      }
-    } catch(e) {
-      setLog('Parse fout: ' + e.message, 'err');
+client.on('message', (topic, payload) => {
+  if (topic !== TOPIC_STATUS) return;
+  try {
+    const d = JSON.parse(payload.toString());
+    
+    espConnected = true;
+    setConn('connected', 'ESP verbonden');
+    setBtns(true);
+    
+    // Update temperatuur
+    if (d.temp !== undefined) {
+      document.getElementById('tempVal').textContent = d.temp.toFixed(1) + '°';
     }
-  });
+    
+    // Update luchtvochtigheid
+    if (d.humidity !== undefined) {
+      document.getElementById('humidityVal').textContent = d.humidity.toFixed(1) + '%';
+    }
+    
+    // Update deuren STATUS (dit was het probleem!)
+    if (d.left !== undefined) {
+      updateDoorLabel('leftVal', d.left);
+    }
+    if (d.right !== undefined) {
+      updateDoorLabel('rightVal', d.right);
+    }
+    
+    // Update auto mode
+    if (d.auto !== undefined) {
+      autoOn = d.auto;
+      document.getElementById('autoToggle').className = 'toggle' + (autoOn ? ' on' : '');
+      document.getElementById('autoLabel').textContent = autoOn ? 'Aan' : 'Uit';
+      setBtns(espConnected);
+    }
+    
+    // Update set temperature
+    if (d.setTemp !== undefined) {
+      setTemp = d.setTemp;
+      document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
+    }
+    
+    // Error handling
+    if (d.error) {
+      setError('⚠ ' + d.error);
+      setLog(d.error, 'warn');
+    } else {
+      setError('');
+      setLog('Status ontvangen ' + new Date().toLocaleTimeString('nl-NL'), 'ok');
+    }
+  } catch(e) {
+    setLog('Parse fout: ' + e.message, 'err');
+  }
+});
 
   client.on('reconnect', () => {
     setLog('Herverbinden met broker...','warn');
