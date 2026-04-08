@@ -318,44 +318,30 @@ body::before {
   margin-bottom: 14px;
 }
 
-/* ── Temp + status row ── */
-.info-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.info-box {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 10px;
-  text-align: center;
-}
-
-.info-box .val {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1;
-  margin-bottom: 4px;
-  transition: color 0.3s;
-}
-
-.info-box .lbl {
-  font-size: 10px;
-  color: var(--muted2);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.temp-val { color: var(--amber); }
-
-.door-val { font-size: 13px !important; }
-.door-val.open   { color: var(--green); }
-.door-val.closed { color: var(--red); }
-.door-val.ajar   { color: var(--amber); }
+<!-- Status info -->
+<div class="card">
+  <div class="card-title">Status</div>
+  <div class="info-row">
+    <div class="info-box">
+      <div class="val temp-val" id="tempVal">--°</div>
+      <div class="lbl">Temperatuur</div>
+    </div>
+    <div class="info-box">
+      <div class="val humidity-val" id="humidityVal">--%</div>
+      <div class="lbl">Luchtvochtigheid</div>
+    </div>
+    <div class="info-box">
+      <div class="val door-val" id="leftVal">--</div>
+      <div class="lbl">Links</div>
+    </div>
+  </div>
+  <div class="info-row">
+    <div class="info-box">
+      <div class="val door-val" id="rightVal">--</div>
+      <div class="lbl">Rechts</div>
+    </div>
+  </div>
+</div>
 
 /* ── Door control sections ── */
 .door-section { margin-bottom: 14px; }
