@@ -126,6 +126,12 @@ body::before {
   border-color: rgba(239,68,68,0.5);
 }
 
+.field-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
 .remember-row {
   display: flex;
   align-items: center;
@@ -540,17 +546,18 @@ body::before {
     <div class="login-header">
       <span class="lock-icon">🔐</span>
       <h1>Deur Bediening</h1>
-      <p>Voer je HiveMQ inloggegevens in</p>
+      <p>Voer je Adafruit IO inloggegevens in</p>
     </div>
 
     <div class="login-card">
       <div class="field">
-        <label>Gebruikersnaam</label>
+        <label>Adafruit IO gebruikersnaam</label>
         <input type="text" id="inputUser" placeholder="gebruikersnaam" autocomplete="username" autocapitalize="off" spellcheck="false">
       </div>
       <div class="field">
-        <label>Wachtwoord</label>
-        <input type="password" id="inputPass" placeholder="••••••••••" autocomplete="current-password">
+        <label>AIO Sleutel</label>
+        <input type="password" id="inputPass" placeholder="aio_••••••••••••••••••••••••" autocomplete="current-password">
+        <div class="field-hint">Vind je sleutel op io.adafruit.com → gele sleutel 🔑</div>
       </div>
 
       <div class="remember-row" onclick="toggleRemember()">
@@ -688,11 +695,18 @@ body::before {
 </div><!-- /page -->
 
 <script>
-const PORT         = 8884;
-const TOPIC_CMD    = 'deur/command';
-const TOPIC_STATUS = 'deur/status';
-const STORAGE_KEY  = 'deurapp_creds';
-const HIVEMQ_HOST  = 'b50882be934647908aa15c55b814bd3b.s1.eu.hivemq.cloud';
+// ── Adafruit IO instellingen ──────────────────────────────────────────────
+// Broker: io.adafruit.com, poort 443 (WSS), pad /mqtt
+const AIO_HOST     = 'io.adafruit.com';
+const AIO_PORT     = 443;
+
+// Topics worden opgebouwd zodra de gebruiker inlogt:
+// {username}/feeds/deur-command  →  commando's naar ESP
+// {username}/feeds/deur-status   →  statusberichten van ESP
+let TOPIC_CMD    = '';
+let TOPIC_STATUS = '';
+
+const STORAGE_KEY = 'deurapp_aio_creds';
 
 let client;
 let espConnected = false;
@@ -700,6 +714,7 @@ let autoOn    = false;
 let setTemp   = 22.0;
 let rememberMe = false;
 
+// ── Onthoud mij ───────────────────────────────────────────────────────────
 function toggleRemember() {
   rememberMe = !rememberMe;
   const box = document.getElementById('rememberBox');
@@ -707,9 +722,7 @@ function toggleRemember() {
 }
 
 function saveCredentials(user, pass) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, pass }));
-  } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, pass })); } catch(e) {}
 }
 
 function loadCredentials() {
@@ -723,6 +736,7 @@ function clearCredentials() {
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
 }
 
+// ── Login / logout ────────────────────────────────────────────────────────
 function showLoginError(msg) {
   const el = document.getElementById('loginError');
   el.textContent = msg;
@@ -736,15 +750,19 @@ function hideLoginError() {
 function doLogin() {
   hideLoginError();
   const user = document.getElementById('inputUser').value.trim();
-  const pass = document.getElementById('inputPass').value;
+  const pass = document.getElementById('inputPass').value.trim();
 
   if (!user) { showLoginError('Vul een gebruikersnaam in.'); return; }
-  if (!pass) { showLoginError('Vul een wachtwoord in.'); return; }
+  if (!pass) { showLoginError('Vul je AIO sleutel in.'); return; }
+
+  // Bouw Adafruit IO feed-topics op met de ingevoerde gebruikersnaam
+  TOPIC_CMD    = user + '/feeds/deur-command';
+  TOPIC_STATUS = user + '/feeds/deur-status';
 
   document.getElementById('loginBtn').disabled = true;
   document.getElementById('loginBtn').textContent = 'Verbinden...';
 
-  connectMQTT(HIVEMQ_HOST, user, pass, () => {
+  connectMQTT(user, pass, () => {
     if (rememberMe) saveCredentials(user, pass);
     showApp();
   }, (err) => {
@@ -758,6 +776,8 @@ function doLogout() {
   if (client) { try { client.end(true); } catch(e) {} }
   clearCredentials();
   espConnected = false;
+  TOPIC_CMD = '';
+  TOPIC_STATUS = '';
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginBtn').disabled = false;
@@ -772,6 +792,7 @@ function showApp() {
   setLog('Klik op 🔄 om status op te vragen...', '');
 }
 
+// ── UI hulpfuncties ───────────────────────────────────────────────────────
 function setConn(state, label) {
   const badge = document.getElementById('connBadge');
   badge.className = 'conn-badge ' + state;
@@ -791,26 +812,26 @@ function setError(msg) {
 }
 
 function setBtns(enabled) {
-  const allBtns = document.querySelectorAll('.btn');
-  allBtns.forEach(b => {
-    // Disable buttons als auto is aan
+  document.querySelectorAll('.btn').forEach(b => {
     b.disabled = !enabled || autoOn;
   });
-  
   document.getElementById('autoToggle').disabled = !enabled;
   document.getElementById('tempMinusBtn').disabled = !enabled || !autoOn;
-  document.getElementById('tempPlusBtn').disabled = !enabled || !autoOn;
+  document.getElementById('tempPlusBtn').disabled  = !enabled || !autoOn;
 }
 
 function updateDoorLabel(elId, val) {
   const el = document.getElementById(elId);
   const map = { 'open':'Open', 'dicht':'Dicht', 'kier':'Kier', 'onbekend':'--' };
   el.textContent = map[val] || val;
-  el.className = 'val door-val ' + (val === 'open' ? 'open' : val === 'dicht' ? 'closed' : val === 'kier' ? 'ajar' : '');
+  el.className = 'val door-val ' +
+    (val === 'open' ? 'open' : val === 'dicht' ? 'closed' : val === 'kier' ? 'ajar' : '');
 }
 
+// ── MQTT berichten sturen ─────────────────────────────────────────────────
 function send(cmd) {
-  if (!espConnected) return;
+  if (!espConnected || !client) return;
+  // Adafruit IO verwacht de payload als losse string (of JSON) in de feed
   client.publish(TOPIC_CMD, cmd, { qos: 1 });
   setLog('Verzonden: ' + cmd, 'ok');
 }
@@ -824,13 +845,9 @@ function requestStatus() {
 function toggleAuto() {
   autoOn = !autoOn;
   const toggle = document.getElementById('autoToggle');
-  const label  = document.getElementById('autoLabel');
   toggle.className = 'toggle' + (autoOn ? ' on' : '');
-  label.textContent = autoOn ? 'Aan' : 'Uit';
-  
-  // Update button states
+  document.getElementById('autoLabel').textContent = autoOn ? 'Aan' : 'Uit';
   setBtns(espConnected);
-  
   send(autoOn ? 'auto:on' : 'auto:off');
   if (autoOn) send('settemp:' + setTemp.toFixed(1));
 }
@@ -841,24 +858,33 @@ function adjustTemp(delta) {
   if (autoOn) send('settemp:' + setTemp.toFixed(1));
 }
 
-function connectMQTT(host, user, pass, onSuccess, onError) {
-  const id = 'web_' + Math.random().toString(16).slice(2,8);
+// ── MQTT verbinding (Adafruit IO via WebSocket) ───────────────────────────
+function connectMQTT(user, pass, onSuccess, onError) {
+  const id = 'web_' + Math.random().toString(16).slice(2, 8);
   let resolved = false;
 
-  client = mqtt.connect(`wss://${host}:${PORT}/mqtt`, {
-    clientId: id, username: user, password: pass,
-    clean: true, reconnectPeriod: 0, connectTimeout: 10000
+  // Adafruit IO: wss://io.adafruit.com:443/mqtt
+  // Username = AIO gebruikersnaam, Password = AIO sleutel
+  client = mqtt.connect(`wss://${AIO_HOST}:${AIO_PORT}/mqtt`, {
+    clientId:        id,
+    username:        user,   // Adafruit IO gebruikersnaam
+    password:        pass,   // Adafruit IO AIO sleutel
+    clean:           true,
+    reconnectPeriod: 0,
+    connectTimeout:  10000
   });
 
   client.on('connect', () => {
     if (resolved) return;
     resolved = true;
 
-    client.options.reconnectPeriod = 3000;
+    client.options.reconnectPeriod = 5000;
 
-    setConn('', 'Broker verbonden');
+    setConn('', 'Adafruit IO verbonden');
     setLog('Broker verbonden. Klik op 🔄 om ESP status op te vragen...', '');
-    client.subscribe(TOPIC_STATUS);
+
+    // Abonneren op de status-feed van de ESP
+    client.subscribe(TOPIC_STATUS, { qos: 1 });
     onSuccess();
   });
 
@@ -869,78 +895,78 @@ function connectMQTT(host, user, pass, onSuccess, onError) {
       return;
     }
     setLog('Fout: ' + e.message, 'err');
-    setConn('error','Fout');
+    setConn('error', 'Fout');
     setBtns(false);
     espConnected = false;
   });
 
-client.on('message', (topic, payload) => {
-  if (topic !== TOPIC_STATUS) return;
-  try {
-    const d = JSON.parse(payload.toString());
-    
+  client.on('message', (topic, payload) => {
+    if (topic !== TOPIC_STATUS) return;
+
+    // Adafruit IO stuurt soms een JSON-wrapper: {"id":..., "value":"...", ...}
+    // of direct de ruwe payload. Beide gevallen worden afgehandeld.
+    let raw = payload.toString();
+    let data;
+
+    try {
+      const parsed = JSON.parse(raw);
+
+      // Adafruit IO feed-wrapper? Dan zit de echte waarde in parsed.value
+      if (parsed.value !== undefined && typeof parsed.value === 'string') {
+        data = JSON.parse(parsed.value);
+      } else {
+        // Direct JSON van de ESP (geen wrapper)
+        data = parsed;
+      }
+    } catch(e) {
+      setLog('Parse fout: ' + e.message, 'err');
+      return;
+    }
+
     espConnected = true;
     setConn('connected', 'ESP verbonden');
     setBtns(true);
-    
-    // Update temperatuur
-    if (d.temp !== undefined) {
-      document.getElementById('tempVal').textContent = d.temp.toFixed(1) + '°';
-    }
-    
-    // Update luchtvochtigheid
-    if (d.humidity !== undefined) {
-      document.getElementById('humidityVal').textContent = d.humidity.toFixed(1) + '%';
-    }
-    
-    // Update deuren STATUS (dit was het probleem!)
-    if (d.left !== undefined) {
-      updateDoorLabel('leftVal', d.left);
-    }
-    if (d.right !== undefined) {
-      updateDoorLabel('rightVal', d.right);
-    }
-    
-    // Update auto mode
-    if (d.auto !== undefined) {
-      autoOn = d.auto;
+
+    if (data.temp     !== undefined) document.getElementById('tempVal').textContent     = data.temp.toFixed(1) + '°';
+    if (data.humidity !== undefined) document.getElementById('humidityVal').textContent = data.humidity.toFixed(1) + '%';
+    if (data.left     !== undefined) updateDoorLabel('leftVal',  data.left);
+    if (data.right    !== undefined) updateDoorLabel('rightVal', data.right);
+
+    if (data.auto !== undefined) {
+      autoOn = data.auto;
       document.getElementById('autoToggle').className = 'toggle' + (autoOn ? ' on' : '');
       document.getElementById('autoLabel').textContent = autoOn ? 'Aan' : 'Uit';
       setBtns(espConnected);
     }
-    
-    // Update set temperature
-    if (d.setTemp !== undefined) {
-      setTemp = d.setTemp;
+
+    if (data.setTemp !== undefined) {
+      setTemp = data.setTemp;
       document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
     }
-    
-    // Error handling
-    if (d.error) {
-      setError('⚠ ' + d.error);
-      setLog(d.error, 'warn');
+
+    if (data.error) {
+      setError('⚠ ' + data.error);
+      setLog(data.error, 'warn');
     } else {
       setError('');
       setLog('Status ontvangen ' + new Date().toLocaleTimeString('nl-NL'), 'ok');
     }
-  } catch(e) {
-    setLog('Parse fout: ' + e.message, 'err');
-  }
-});
+  });
 
   client.on('reconnect', () => {
-    setLog('Herverbinden met broker...','warn');
-    setConn('','Herverbinden');
+    setLog('Herverbinden met Adafruit IO...', 'warn');
+    setConn('', 'Herverbinden');
   });
 
   client.on('offline', () => {
-    setLog('Offline','err');
-    setConn('error','Offline');
+    setLog('Offline', 'err');
+    setConn('error', 'Offline');
     setBtns(false);
     espConnected = false;
   });
 }
 
+// ── Automatisch inloggen als gegevens opgeslagen zijn ────────────────────
 (function init() {
   const saved = loadCredentials();
   if (saved) {
