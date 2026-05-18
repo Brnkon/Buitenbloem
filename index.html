@@ -114,17 +114,9 @@ body::before {
   -webkit-appearance: none;
 }
 
-.field input:focus {
-  border-color: rgba(59,130,246,0.5);
-}
-
-.field input::placeholder {
-  color: var(--muted);
-}
-
-.field input.error {
-  border-color: rgba(239,68,68,0.5);
-}
+.field input:focus { border-color: rgba(59,130,246,0.5); }
+.field input::placeholder { color: var(--muted); }
+.field input.error { border-color: rgba(239,68,68,0.5); }
 
 .field-hint {
   font-size: 11px;
@@ -143,8 +135,7 @@ body::before {
 }
 
 .custom-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 18px; height: 18px;
   border: 1px solid var(--border2);
   border-radius: 5px;
   background: var(--bg);
@@ -155,10 +146,7 @@ body::before {
   transition: all 0.15s;
 }
 
-.custom-checkbox.checked {
-  background: var(--blue);
-  border-color: var(--blue);
-}
+.custom-checkbox.checked { background: var(--blue); border-color: var(--blue); }
 
 .custom-checkbox .check-icon {
   font-size: 11px;
@@ -169,15 +157,8 @@ body::before {
   line-height: 1;
 }
 
-.custom-checkbox.checked .check-icon {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.remember-row span {
-  font-size: 13px;
-  color: var(--muted2);
-}
+.custom-checkbox.checked .check-icon { opacity: 1; transform: scale(1); }
+.remember-row span { font-size: 13px; color: var(--muted2); }
 
 .login-btn {
   width: 100%;
@@ -239,23 +220,10 @@ body::before {
   border-bottom: 1px solid var(--border);
 }
 
-.header-left h1 {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.3px;
-}
+.header-left h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+.header-left p { font-size: 12px; color: var(--muted2); margin-top: 2px; }
 
-.header-left p {
-  font-size: 12px;
-  color: var(--muted2);
-  margin-top: 2px;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.header-right { display: flex; align-items: center; gap: 8px; }
 
 .conn-badge {
   display: flex;
@@ -279,6 +247,7 @@ body::before {
   background: var(--muted);
   transition: all 0.3s;
 }
+
 .conn-badge.connected .conn-dot { background: var(--green); animation: blink 2s infinite; }
 .conn-badge.error     .conn-dot { background: var(--red); }
 
@@ -350,13 +319,13 @@ body::before {
   text-transform: uppercase;
 }
 
-.temp-val { color: var(--amber); }
+.temp-val     { color: var(--amber); }
 .humidity-val { color: var(--blue); }
 
-.door-val { font-size: 13px !important; }
-.door-val.open   { color: var(--green); }
-.door-val.closed { color: var(--red); }
-.door-val.ajar   { color: var(--amber); }
+.door-val            { font-size: 13px !important; }
+.door-val.open       { color: var(--green); }
+.door-val.closed     { color: var(--red); }
+.door-val.ajar       { color: var(--amber); }
 
 .error-msg {
   padding: 12px 14px;
@@ -371,6 +340,55 @@ body::before {
 
 .error-msg.show { display: block; }
 
+/* ── Bezig banner ─────────────────────────────────────────────────────── */
+.bezig-card {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 12px;
+  padding: 13px 16px;
+  margin-bottom: 12px;
+  animation: fadeIn 0.2s ease;
+}
+
+.bezig-card.show { display: flex; }
+
+@keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+.bezig-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(59,130,246,0.2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.bezig-body { flex: 1; min-width: 0; }
+
+.bezig-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin-bottom: 2px;
+}
+
+.bezig-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Bediening ── */
 .door-section { margin-bottom: 14px; }
 .door-section:last-child { margin-bottom: 0; }
 
@@ -429,7 +447,6 @@ body::before {
 .btn.red { border-color: rgba(239,68,68,0.3); color: var(--red); background: var(--gred); }
 .btn.red:hover { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.18); }
 
-/* Cooldown state: knoppen dimmen en cursor blokkeren */
 .btn.cooldown { opacity: 0.35; cursor: not-allowed; transform: none; pointer-events: none; }
 
 .auto-header {
@@ -487,17 +504,9 @@ body::before {
   padding: 12px 14px;
 }
 
-.temp-setter .lbl {
-  font-size: 12px;
-  color: var(--muted2);
-  flex: 1;
-}
+.temp-setter .lbl { font-size: 12px; color: var(--muted2); flex: 1; }
 
-.temp-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.temp-controls { display: flex; align-items: center; gap: 10px; }
 
 .temp-btn {
   width: 28px; height: 28px;
@@ -597,6 +606,15 @@ body::before {
     <!-- Error message -->
     <div class="error-msg" id="errorMsg"></div>
 
+    <!-- Bezig banner: verschijnt zodra ESP een actie uitvoert -->
+    <div class="bezig-card" id="bezigCard">
+      <div class="bezig-spinner"></div>
+      <div class="bezig-body">
+        <div class="bezig-label">Bezig</div>
+        <div class="bezig-text" id="bezigText">—</div>
+      </div>
+    </div>
+
     <!-- Status info -->
     <div class="card">
       <div class="card-title">Status</div>
@@ -692,7 +710,7 @@ body::before {
       </div>
     </div>
 
-    <div class="log" id="log">Klik op 🔄 om status op te vragen...</div>
+    <div class="log" id="log">Verbinden...</div>
 
   </div><!-- /appScreen -->
 </div><!-- /page -->
@@ -719,24 +737,32 @@ const CMD_COOLDOWN_MS = 3000;
 let cooldownTimer     = null;
 
 function startCooldown() {
-  // Knoppen dimmen tijdens cooldown
   document.querySelectorAll('.btn').forEach(b => {
     if (!b.disabled) b.classList.add('cooldown');
   });
-
   clearInterval(cooldownTimer);
-
   cooldownTimer = setInterval(() => {
     const remaining = Math.ceil((CMD_COOLDOWN_MS - (Date.now() - lastCmdTime)) / 1000);
     if (remaining <= 0) {
       clearInterval(cooldownTimer);
-      // Cooldown voorbij: knoppen weer inschakelen
       document.querySelectorAll('.btn').forEach(b => b.classList.remove('cooldown'));
       setLog('Klaar om te bedienen.', 'ok');
     } else {
       setLog(`⏳ Volgende commando mogelijk over ${remaining}s...`, 'warn');
     }
   }, 250);
+}
+
+// ── Bezig banner ──────────────────────────────────────────────────────────
+function setBezigBanner(tekst) {
+  const card = document.getElementById('bezigCard');
+  const txt  = document.getElementById('bezigText');
+  if (tekst && tekst.length > 0) {
+    txt.textContent = tekst;
+    card.classList.add('show');
+  } else {
+    card.classList.remove('show');
+  }
 }
 
 // ── Onthoud mij ───────────────────────────────────────────────────────────
@@ -803,6 +829,7 @@ function doLogout() {
   espConnected = false;
   TOPIC_CMD = '';
   TOPIC_STATUS = '';
+  setBezigBanner('');
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginBtn').disabled = false;
@@ -920,7 +947,7 @@ function connectMQTT(user, pass, onSuccess, onError) {
     client.options.reconnectPeriod = 5000;
 
     setConn('', 'Adafruit IO verbonden');
-    setLog('Broker verbonden. Klik op 🔄 om ESP status op te vragen...', '');
+    setLog('Broker verbonden. Status opvragen...', '');
 
     client.subscribe(TOPIC_STATUS, { qos: 1 });
     onSuccess();
@@ -960,7 +987,7 @@ function connectMQTT(user, pass, onSuccess, onError) {
     setConn('connected', 'ESP verbonden');
     setBtns(true);
 
-    // Refresh knop weer inschakelen nu het antwoord binnen is
+    // Refresh knop weer inschakelen na ontvangst
     const connectBtn = document.getElementById('connectBtn');
     connectBtn.disabled = false;
     connectBtn.textContent = '🔄';
@@ -980,6 +1007,17 @@ function connectMQTT(user, pass, onSuccess, onError) {
     if (data.setTemp !== undefined) {
       setTemp = data.setTemp;
       document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
+    }
+
+    // ── Bezig banner ──────────────────────────────────
+    // data.bezig = "Links sluiten..." → banner tonen
+    // data.bezig = ""                 → banner verbergen (actie klaar)
+    if (data.bezig !== undefined) {
+      setBezigBanner(data.bezig);
+      if (data.bezig && data.bezig.length > 0) {
+        setLog('⚙ ' + data.bezig, 'warn');
+        return; // log niet overschrijven met "status ontvangen"
+      }
     }
 
     if (data.error) {
