@@ -429,6 +429,9 @@ body::before {
 .btn.red { border-color: rgba(239,68,68,0.3); color: var(--red); background: var(--gred); }
 .btn.red:hover { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.18); }
 
+/* Cooldown state: knoppen dimmen en cursor blokkeren */
+.btn.cooldown { opacity: 0.35; cursor: not-allowed; transform: none; pointer-events: none; }
+
 .auto-header {
   display: flex;
   align-items: center;
@@ -696,23 +699,45 @@ body::before {
 
 <script>
 // ── Adafruit IO instellingen ──────────────────────────────────────────────
-// Broker: io.adafruit.com, poort 443 (WSS), pad /mqtt
-const AIO_HOST     = 'io.adafruit.com';
-const AIO_PORT     = 443;
+const AIO_HOST = 'io.adafruit.com';
+const AIO_PORT = 443;
 
-// Topics worden opgebouwd zodra de gebruiker inlogt:
-// {username}/feeds/deur-command  →  commando's naar ESP
-// {username}/feeds/deur-status   →  statusberichten van ESP
 let TOPIC_CMD    = '';
 let TOPIC_STATUS = '';
 
 const STORAGE_KEY = 'deurapp_aio_creds';
 
 let client;
-let espConnected = false;
-let autoOn    = false;
-let setTemp   = 22.0;
-let rememberMe = false;
+let espConnected  = false;
+let autoOn        = false;
+let setTemp       = 22.0;
+let rememberMe    = false;
+
+// ── Cooldown ──────────────────────────────────────────────────────────────
+let lastCmdTime       = 0;
+const CMD_COOLDOWN_MS = 3000;
+let cooldownTimer     = null;
+
+function startCooldown() {
+  // Knoppen dimmen tijdens cooldown
+  document.querySelectorAll('.btn').forEach(b => {
+    if (!b.disabled) b.classList.add('cooldown');
+  });
+
+  clearInterval(cooldownTimer);
+
+  cooldownTimer = setInterval(() => {
+    const remaining = Math.ceil((CMD_COOLDOWN_MS - (Date.now() - lastCmdTime)) / 1000);
+    if (remaining <= 0) {
+      clearInterval(cooldownTimer);
+      // Cooldown voorbij: knoppen weer inschakelen
+      document.querySelectorAll('.btn').forEach(b => b.classList.remove('cooldown'));
+      setLog('Klaar om te bedienen.', 'ok');
+    } else {
+      setLog(`⏳ Volgende commando mogelijk over ${remaining}s...`, 'warn');
+    }
+  }, 250);
+}
 
 // ── Onthoud mij ───────────────────────────────────────────────────────────
 function toggleRemember() {
@@ -755,7 +780,6 @@ function doLogin() {
   if (!user) { showLoginError('Vul een gebruikersnaam in.'); return; }
   if (!pass) { showLoginError('Vul je AIO sleutel in.'); return; }
 
-  // Bouw Adafruit IO feed-topics op met de ingevoerde gebruikersnaam
   TOPIC_CMD    = user + '/feeds/deur-command';
   TOPIC_STATUS = user + '/feeds/deur-status';
 
@@ -775,6 +799,7 @@ function doLogin() {
 function doLogout() {
   if (client) { try { client.end(true); } catch(e) {} }
   clearCredentials();
+  clearInterval(cooldownTimer);
   espConnected = false;
   TOPIC_CMD = '';
   TOPIC_STATUS = '';
@@ -789,7 +814,8 @@ function doLogout() {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  setLog('Klik op 🔄 om status op te vragen...', '');
+  // Automatisch status opvragen zodra de app zichtbaar is
+  requestStatus();
 }
 
 // ── UI hulpfuncties ───────────────────────────────────────────────────────
@@ -831,13 +857,28 @@ function updateDoorLabel(elId, val) {
 // ── MQTT berichten sturen ─────────────────────────────────────────────────
 function send(cmd) {
   if (!espConnected || !client) return;
-  // Adafruit IO verwacht de payload als losse string (of JSON) in de feed
+
+  const now     = Date.now();
+  const elapsed = now - lastCmdTime;
+
+  if (elapsed < CMD_COOLDOWN_MS) {
+    const remaining = Math.ceil((CMD_COOLDOWN_MS - elapsed) / 1000);
+    setLog(`⏳ Wacht nog ${remaining}s voor het volgende commando...`, 'warn');
+    return;
+  }
+
+  lastCmdTime = now;
   client.publish(TOPIC_CMD, cmd, { qos: 1 });
   setLog('Verzonden: ' + cmd, 'ok');
+  startCooldown();
 }
 
 function requestStatus() {
   if (!client) return;
+  // Refresh knop uitschakelen totdat antwoord binnenkomt
+  const btn = document.getElementById('connectBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳';
   client.publish(TOPIC_CMD, 'status:request', { qos: 1 });
   setLog('Status opgevraagd...', 'warn');
 }
@@ -863,12 +904,10 @@ function connectMQTT(user, pass, onSuccess, onError) {
   const id = 'web_' + Math.random().toString(16).slice(2, 8);
   let resolved = false;
 
-  // Adafruit IO: wss://io.adafruit.com:443/mqtt
-  // Username = AIO gebruikersnaam, Password = AIO sleutel
   client = mqtt.connect(`wss://${AIO_HOST}:${AIO_PORT}/mqtt`, {
     clientId:        id,
-    username:        user,   // Adafruit IO gebruikersnaam
-    password:        pass,   // Adafruit IO AIO sleutel
+    username:        user,
+    password:        pass,
     clean:           true,
     reconnectPeriod: 0,
     connectTimeout:  10000
@@ -883,7 +922,6 @@ function connectMQTT(user, pass, onSuccess, onError) {
     setConn('', 'Adafruit IO verbonden');
     setLog('Broker verbonden. Klik op 🔄 om ESP status op te vragen...', '');
 
-    // Abonneren op de status-feed van de ESP
     client.subscribe(TOPIC_STATUS, { qos: 1 });
     onSuccess();
   });
@@ -903,19 +941,14 @@ function connectMQTT(user, pass, onSuccess, onError) {
   client.on('message', (topic, payload) => {
     if (topic !== TOPIC_STATUS) return;
 
-    // Adafruit IO stuurt soms een JSON-wrapper: {"id":..., "value":"...", ...}
-    // of direct de ruwe payload. Beide gevallen worden afgehandeld.
     let raw = payload.toString();
     let data;
 
     try {
       const parsed = JSON.parse(raw);
-
-      // Adafruit IO feed-wrapper? Dan zit de echte waarde in parsed.value
       if (parsed.value !== undefined && typeof parsed.value === 'string') {
         data = JSON.parse(parsed.value);
       } else {
-        // Direct JSON van de ESP (geen wrapper)
         data = parsed;
       }
     } catch(e) {
@@ -926,6 +959,11 @@ function connectMQTT(user, pass, onSuccess, onError) {
     espConnected = true;
     setConn('connected', 'ESP verbonden');
     setBtns(true);
+
+    // Refresh knop weer inschakelen nu het antwoord binnen is
+    const connectBtn = document.getElementById('connectBtn');
+    connectBtn.disabled = false;
+    connectBtn.textContent = '🔄';
 
     if (data.temp     !== undefined) document.getElementById('tempVal').textContent     = data.temp.toFixed(1) + '°';
     if (data.humidity !== undefined) document.getElementById('humidityVal').textContent = data.humidity.toFixed(1) + '%';
