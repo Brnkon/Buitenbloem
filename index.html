@@ -534,6 +534,47 @@ body::before {
   text-align: center;
 }
 
+/* ── Temperatuur bevestigknop ── */
+.temp-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.temp-confirm-btn {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 9px;
+  color: var(--amber);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.temp-confirm-btn:hover { background: var(--gamber); border-color: rgba(245,158,11,0.55); }
+.temp-confirm-btn:active { transform: scale(0.97); }
+.temp-confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+/* Knipperende rand als de waarde niet is doorgevoerd */
+.temp-confirm-btn.pending {
+  border-color: var(--amber);
+  animation: pulse-border 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.0); }
+  50%      { box-shadow: 0 0 0 3px rgba(245,158,11,0.2); }
+}
+
 .log {
   font-size: 11px;
   color: var(--muted);
@@ -708,6 +749,13 @@ body::before {
           <button class="temp-btn" onclick="adjustTemp(0.5)" id="tempPlusBtn" disabled>+</button>
         </div>
       </div>
+
+      <!-- Bevestigknop: stuurt de temperatuur pas door bij klikken -->
+      <div class="temp-confirm-row">
+        <button class="temp-confirm-btn" id="tempConfirmBtn" onclick="confirmTemp()" disabled>
+          <span>✓</span> Temperatuur doorvoeren
+        </button>
+      </div>
     </div>
 
     <div class="log" id="log">Verbinden...</div>
@@ -730,6 +778,9 @@ let espConnected  = false;
 let autoOn        = false;
 let setTemp       = 22.0;
 let rememberMe    = false;
+
+// Bijhouder: is de weergegeven temperatuur anders dan wat de ESP kent?
+let tempPending = false;
 
 // ── Cooldown ──────────────────────────────────────────────────────────────
 let lastCmdTime       = 0;
@@ -841,7 +892,6 @@ function doLogout() {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  // Automatisch status opvragen zodra de app zichtbaar is
   requestStatus();
 }
 
@@ -869,8 +919,10 @@ function setBtns(enabled) {
     b.disabled = !enabled || autoOn;
   });
   document.getElementById('autoToggle').disabled = !enabled;
-  document.getElementById('tempMinusBtn').disabled = !enabled || !autoOn;
-  document.getElementById('tempPlusBtn').disabled  = !enabled || !autoOn;
+  const tempActive = enabled && autoOn;
+  document.getElementById('tempMinusBtn').disabled   = !tempActive;
+  document.getElementById('tempPlusBtn').disabled    = !tempActive;
+  document.getElementById('tempConfirmBtn').disabled = !tempActive;
 }
 
 function updateDoorLabel(elId, val) {
@@ -879,6 +931,19 @@ function updateDoorLabel(elId, val) {
   el.textContent = map[val] || val;
   el.className = 'val door-val ' +
     (val === 'open' ? 'open' : val === 'dicht' ? 'closed' : val === 'kier' ? 'ajar' : '');
+}
+
+// ── Temperatuur: pending-stijl bijwerken ──────────────────────────────────
+function setTempPending(pending) {
+  tempPending = pending;
+  const btn = document.getElementById('tempConfirmBtn');
+  if (pending) {
+    btn.classList.add('pending');
+    btn.innerHTML = '<span>✓</span> Temperatuur doorvoeren';
+  } else {
+    btn.classList.remove('pending');
+    btn.innerHTML = '<span>✓</span> Temperatuur doorvoeren';
+  }
 }
 
 // ── MQTT berichten sturen ─────────────────────────────────────────────────
@@ -902,7 +967,6 @@ function send(cmd) {
 
 function requestStatus() {
   if (!client) return;
-  // Refresh knop uitschakelen totdat antwoord binnenkomt
   const btn = document.getElementById('connectBtn');
   btn.disabled = true;
   btn.textContent = '⏳';
@@ -917,13 +981,25 @@ function toggleAuto() {
   document.getElementById('autoLabel').textContent = autoOn ? 'Aan' : 'Uit';
   setBtns(espConnected);
   send(autoOn ? 'auto:on' : 'auto:off');
-  if (autoOn) send('settemp:' + setTemp.toFixed(1));
+  // Bij inschakelen meteen de huidige setTemp doorsturen
+  if (autoOn) {
+    send('settemp:' + setTemp.toFixed(1));
+    setTempPending(false);
+  }
 }
 
+// adjustTemp past alleen de lokale weergave aan — geen send meer
 function adjustTemp(delta) {
   setTemp = Math.round((setTemp + delta) * 10) / 10;
   document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
-  if (autoOn) send('settemp:' + setTemp.toFixed(1));
+  setTempPending(true);
+}
+
+// confirmTemp stuurt de temperatuur pas door bij expliciete bevestiging
+function confirmTemp() {
+  if (!autoOn || !espConnected) return;
+  send('settemp:' + setTemp.toFixed(1));
+  setTempPending(false);
 }
 
 // ── MQTT verbinding (Adafruit IO via WebSocket) ───────────────────────────
@@ -987,7 +1063,6 @@ function connectMQTT(user, pass, onSuccess, onError) {
     setConn('connected', 'ESP verbonden');
     setBtns(true);
 
-    // Refresh knop weer inschakelen na ontvangst
     const connectBtn = document.getElementById('connectBtn');
     connectBtn.disabled = false;
     connectBtn.textContent = '🔄';
@@ -1005,18 +1080,19 @@ function connectMQTT(user, pass, onSuccess, onError) {
     }
 
     if (data.setTemp !== undefined) {
-      setTemp = data.setTemp;
-      document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
+      // Alleen de weergave bijwerken als er geen niet-doorgevoerde wijziging is
+      if (!tempPending) {
+        setTemp = data.setTemp;
+        document.getElementById('setTempDisplay').textContent = setTemp.toFixed(1) + '°';
+      }
     }
 
     // ── Bezig banner ──────────────────────────────────
-    // data.bezig = "Links sluiten..." → banner tonen
-    // data.bezig = ""                 → banner verbergen (actie klaar)
     if (data.bezig !== undefined) {
       setBezigBanner(data.bezig);
       if (data.bezig && data.bezig.length > 0) {
         setLog('⚙ ' + data.bezig, 'warn');
-        return; // log niet overschrijven met "status ontvangen"
+        return;
       }
     }
 
