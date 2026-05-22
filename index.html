@@ -1133,7 +1133,7 @@ function connectMQTT(user, pass, onSuccess, onError) {
     // ── Obstakel waarschuwing ──────────────────────────────────────
     if (data.obstacle !== undefined) {
       if (data.obstacle) {
-        setObstacleAlert(true, '⚠️ Deur geblokkeerd: obstakel gedetecteerd!');
+        setObstacleAlert(true, ' Deur geblokkeerd: obstakel gedetecteerd!');
         setLog('⚠️ OBSTAKEL GEDETECTEERD - motor gestopt', 'err');
       } else {
         setObstacleAlert(false);
