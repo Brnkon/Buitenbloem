@@ -1024,10 +1024,16 @@ function toggleAuto() {
   setBtns(espConnected);
   send(autoOn ? 'auto:on' : 'auto:off');
   // Bij inschakelen meteen de huidige setTemp doorsturen
-  if (autoOn) {
-    send('settemp:' + setTemp.toFixed(1));
+// NA
+if (autoOn) {
+    send('auto:on');
+    // Stuur settemp direct, buiten cooldown — hoort bij het aanzetten
+    if (client && espConnected) {
+        client.publish(TOPIC_CMD, 'settemp:' + setTemp.toFixed(1), { qos: 1 });
+        setLog('Auto aan + temperatuur: ' + setTemp.toFixed(1) + '°', 'ok');
+    }
     setTempPending(false);
-  }
+}
 }
 
 // adjustTemp past alleen de lokale weergave aan — geen send meer
