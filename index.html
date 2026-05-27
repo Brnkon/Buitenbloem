@@ -962,10 +962,9 @@ function setBtns(enabled) {
     b.disabled = !enabled || autoOn;
   });
   document.getElementById('autoToggle').disabled = !enabled;
-  const tempActive = enabled && autoOn;
-  document.getElementById('tempMinusBtn').disabled   = !tempActive;
-  document.getElementById('tempPlusBtn').disabled    = !tempActive;
-  document.getElementById('tempConfirmBtn').disabled = !tempActive;
+document.getElementById('tempMinusBtn').disabled   = !enabled;   // ← altijd beschikbaar als verbonden
+document.getElementById('tempPlusBtn').disabled    = !enabled;   // ← idem
+document.getElementById('tempConfirmBtn').disabled = !(enabled && autoOn); // ← pas actief als auto aan
 }
 
 function updateDoorLabel(elId, val) {
