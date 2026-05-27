@@ -1026,16 +1026,15 @@ function toggleAuto() {
   // Bij inschakelen meteen de huidige setTemp doorsturen
 // NA
 if (autoOn) {
-    if (client && espConnected) {
-        // Stuur settemp eerst
-        client.publish(TOPIC_CMD, 'settemp:' + setTemp.toFixed(1), { qos: 1 });
-        // Auto:on na 200ms zodat ze niet samenklonteren in één frame
-        setTimeout(() => {
-            client.publish(TOPIC_CMD, 'auto:on', { qos: 1 });
-            setLog('Auto aan + temperatuur: ' + setTemp.toFixed(1) + '°', 'ok');
-        }, 200);
-    }
-    setTempPending(false);
+    send('auto:on');
+    setTimeout(() => {
+        if (espConnected && client) {
+            lastCmdTime = Date.now();
+            client.publish(TOPIC_CMD, 'settemp:' + setTemp.toFixed(1), { qos: 1 });
+            setLog('Temperatuur doorgestuurd: ' + setTemp.toFixed(1) + '°', 'ok');
+        }
+        setTempPending(false);
+    }, CMD_COOLDOWN_MS + 200);
 }
 }
 
